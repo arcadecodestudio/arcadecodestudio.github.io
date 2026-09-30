@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Shrek: Dark Path</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; }
+#gameCanvas { display: block; width: 100%; height: 100%; }
+
+#ui {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 15px; display: flex; justify-content: space-between;
+  pointer-events: none; z-index: 10;
+}
+.score-box, .best-box {
+  padding: 8px 16px; border-radius: 20px;
+  font-weight: bold; font-size: 16px;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+}
+.score-box { background: #FFD700; color: #000; }
+.best-box { background: #FF69B4; color: #fff; }
+
+.screen {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at center, #1a0000 0%, #000 100%);
+  z-index: 20; text-align: center; padding: 20px;
+}
+.screen.hidden { display: none; }
+h1 {
+  font-size: 42px; font-weight: 900; color: #FF0000;
+  text-shadow: 0 0 20px #FF0000, 0 0 60px #8B0000;
+  margin-bottom: 15px;
+  letter-spacing: 3px;
+  animation: flicker 0.1s infinite;
+}
+@keyframes flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+.subtitle {
+  font-size: 18px; color: #8B0000; margin-bottom: 30px; font-weight: bold;
+  letter-spacing: 4px;
+}
+.finalScore {
+  font-size: 24px; color: #FF0000; margin-bottom: 8px; font-weight: bold;
+  background: #1a0000; padding: 8px 20px; border-radius: 15px;
+  border: 3px solid #FF0000;
+  text-shadow: 0 0 10px #FF0000;
+}
+.finalBest {
+  font-size: 20px; color: #FF0000; margin-bottom: 30px; font-weight: bold;
+  background: #1a0000; padding: 8px 20px; border-radius: 15px;
+  border: 3px solid #8B0000;
+}
+
+.btn-awesome {
+  background: linear-gradient(135deg, #8B0000, #FF0000);
+  color: #fff; border: 4px solid #FF0000;
+  padding: 18px 50px; font-size: 22px; font-weight: 900;
+  font-family: Arial, sans-serif; border-radius: 50px; cursor: pointer;
+  box-shadow: 0 0 30px #FF0000, 0 6px 0 #500000;
+  text-shadow: 0 0 10px #fff;
+  letter-spacing: 2px;
+}
+.btn-awesome:active {
+  transform: translateY(6px);
+  box-shadow: 0 0 60px #FF0000, 0 0 0 #500000;
+}
+.btn-awesome.restart {
+  background: linear-gradient(135deg, #500000, #8B0000);
+  color: #fff;
+  box-shadow: 0 0 30px #8B0000, 0 6px 0 #200000;
+}
+
+.floating-score {
+  position: absolute; color: #FF0000;
+  font-size: 28px; font-weight: 900;
+  pointer-events: none; z-index: 30;
+  animation: floatUp 1s ease-out forwards;
+  text-shadow: 0 0 15px #FF0000;
+}
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+}
+
+#jumpScare {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #000;
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#jumpScare.show {
+  display: flex;
+  animation: scareShake 0.08s infinite;
+}
+@keyframes scareShake {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-8px, 6px); }
+  50% { transform: translate(8px, -6px); }
+  75% { transform: translate(-5px, -8px); }
+  100% { transform: translate(5px, 8px); }
+}
+.scareFace {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 200px;
+  font-weight: 900;
+  color: #FF0000;
+  text-shadow: 0 0 60px #FF0000, 0 0 120px #8B0000;
+  line-height: 1;
+  animation: scareZoom 0.2s ease-out;
+}
+@keyframes scareZoom {
+  from { transform: scale(0.3); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="ui">
+  <div class="score-box" id="scoreText">Score: 0</div>
+  <div class="best-box" id="bestText">Best: 0</div>
+</div>
+
+<div class="screen" id="startScreen">
+  <h1>SHREK: DARK PATH</h1>
+  <div class="subtitle">⚠ 18+ HORROR ⚠</div>
+  <button class="btn-awesome" id="startBtn">▶ START</button>
+</div>
+
+<div class="screen hidden" id="gameOverScreen">
+  <div class="finalScore" id="finalScore">Score: 0</div>
+  <div class="finalBest" id="finalBest">Best: 0</div>
+  <button class="btn-awesome restart" id="restartBtn">🔄 RESTART</button>
+</div>
+
+<div id="jumpScare">
+  <div class="scareFace" id="scareFace">💀</div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('gameCanvas');
+  var ctx = canvas.getContext('2d');
+  var scoreText = document.getElementById('scoreText');
+  var bestText = document.getElementById('bestText');
+  var startScreen = document.getElementById('startScreen');
+  var gameOverScreen = document.getElementById('gameOverScreen');
+  var finalScore = document.getElementById('finalScore');
+  var finalBest = document.getElementById('finalBest');
+  var startBtn = document.getElementById('startBtn');
+  var restartBtn = document.getElementById('restartBtn');
+  var jumpScare = document.getElementById('jumpScare');
+  var scareFace = document.getElementById('scareFace');
+
+  var scareFaces = ['💀', '😱', '👁️', '🩸', '🧟', '👹', '😈', '☠️'];
+
+  var W = window.innerWidth;
+  var H = window.innerHeight;
+
+  function resize(){
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ============ Audio ============
+  var audioCtx = null;
+
+  function initAudio(){
+    if(!audioCtx){
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){ audioCtx.resume(); }
+  }
+
+  function playScareSound(){
+    if(!audioCtx) return;
+    try {
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.6);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.6);
+
+      var bufferSize = audioCtx.sampleRate * 0.6;
+      var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      var data = buffer.getChannelData(0);
+      for(var i=0; i<bufferSize; i++){
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/bufferSize, 2);
+      }
+      var source = audioCtx.createBufferSource();
+      var noiseGain = audioCtx.createGain();
+      source.buffer = buffer;
+      noiseGain.gain.value = 0.15;
+      source.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+      source.start();
+    } catch(e){}
+  }
+
+  // ============ Game State ============
+  var game = {
+    running: false,
+    score: 0,
+    speed: 5,
+    gravity: 0.9,
+    jumpForce: -16,
+    groundY: 0,
+    player: null,
+    obstacles: [],
+    lastObstacleTime: 0,
+    obstacleInterval: 2000,
+    frameId: null,
+    nextScare: 10,
+    scareActive: false
+  };
+
+  var playerImg = new Image();
+  playerImg.crossOrigin = 'anonymous';
+  playerImg.src = 'https://i.ibb.co/gBsFSSX/In-Shot-20260930-144046796-1.png';
+  var playerImgLoaded = false;
+  playerImg.onload = function(){ playerImgLoaded = true; };
+
+  function createPlayer(){
+    return {
+      x: 60, y: 0, width: 70, height: 90,
+      vy: 0, isJumping: false, hitboxPadding: 18
+    };
+  }
+
+  var bestScore = 0;
+  try {
+    bestScore = parseInt(localStorage.getItem('shrekBest') || '0', 10);
+    if (isNaN(bestScore)) bestScore = 0;
+  } catch(e){ bestScore = 0; }
+  bestText.textContent = 'Best: ' + bestScore;
+
+  function triggerJumpScare(){
+    if(game.scareActive) return;
+    game.scareActive = true;
+
+    scareFace.textContent = scareFaces[Math.floor(Math.random() * scareFaces.length)];
+    jumpScare.classList.add('show');
+
+    playScareSound();
+
+    if(navigator.vibrate){
+      navigator.vibrate([200, 100, 200, 100, 300]);
+    }
+
+    setTimeout(function(){
+      jumpScare.classList.remove('show');
+      game.scareActive = false;
+    }, 800);
+  }
+
+  function startGame(){
+    initAudio();
+    game.running = true;
+    game.score = 0;
+    game.speed = 5;
+    game.obstacles = [];
+    game.lastObstacleTime = 0;
+    game.groundY = H - 100;
+    game.player = createPlayer();
+    game.player.y = game.groundY - game.player.height;
+    game.nextScare = 10;
+
+    scoreText.textContent = 'Score: 0';
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+
+    if(game.frameId) cancelAnimationFrame(game.frameId);
+    game.frameId = requestAnimationFrame(gameLoop);
+  }
+
+  function endGame(){
+    game.running = false;
+    if(game.frameId) cancelAnimationFrame(game.frameId);
+
+    triggerJumpScare();
+
+    if(game.score > bestScore){
+      bestScore = game.score;
+      try { localStorage.setItem('shrekBest', bestScore); } catch(e){}
+    }
+
+    setTimeout(function(){
+      finalScore.textContent = 'Score: ' + game.score;
+      finalBest.textContent = 'Best: ' + bestScore;
+      bestText.textContent = 'Best: ' + bestScore;
+      gameOverScreen.classList.remove('hidden');
+    }, 900);
+  }
+
+  function jump(){
+    if(!game.running) return;
+    if(game.player && !game.player.isJumping){
+      game.player.vy = game.jumpForce;
+      game.player.isJumping = true;
+    }
+  }
+
+  function showFloatingScore(){
+    var el = document.createElement('div');
+    el.className = 'floating-score';
+    el.textContent = '+1';
+    el.style.left = (W/2 - 15) + 'px';
+    el.style.top = (H/2) + 'px';
+    document.body.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 1000);
+  }
+
+  function drawBackground(){
+    var time = Date.now() / 1000;
+
+    var skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, '#0a0000');
+    skyGrad.addColorStop(0.5, '#2a0000');
+    skyGrad.addColorStop(1, '#000');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    var moonX = W - 90;
+    var moonY = 110;
+    ctx.fillStyle = '#8B0000';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 50, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(moonX - 15, moonY - 8, 7, 0, Math.PI*2);
+    ctx.arc(moonX + 15, moonY - 8, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#FF0000';
+    ctx.beginPath();
+    ctx.arc(moonX - 15, moonY - 8, 3, 0, Math.PI*2);
+    ctx.arc(moonX + 15, moonY - 8, 3, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = '#8B0000';
+    var bloodY = (time * 50) % 100;
+    ctx.fillRect(moonX - 5, moonY + 50, 4, bloodY);
+    ctx.fillRect(moonX + 15, moonY + 50, 3, bloodY * 0.7);
+
+    var groundGrad = ctx.createLinearGradient(0, game.groundY, 0, H);
+    groundGrad.addColorStop(0, '#2a0000');
+    groundGrad.addColorStop(1, '#000');
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, game.groundY, W, H - game.groundY);
+
+    ctx.strokeStyle = '#FF0000';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#FF0000';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.moveTo(0, game.groundY);
+    ctx.lineTo(W, game.groundY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawPlayer(){
+    var p = game.player;
+    if(!p) return;
+
+    if(playerImgLoaded){
+      ctx.save();
+      if(p.isJumping){
+        ctx.translate(p.x + p.width/2, p.y + p.height/2);
+        ctx.rotate(Math.sin(Date.now()/80) * 0.15);
+        ctx.translate(-(p.x + p.width/2), -(p.y + p.height/2));
+      }
+      ctx.shadowColor = '#FF0000';
+      ctx.shadowBlur = 25;
+      ctx.drawImage(playerImg, p.x - 10, p.y - 15, p.width + 20, p.height + 20);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#4A7C2E';
+      ctx.fillRect(p.x, p.y, p.width, p.height);
+    }
+  }
+
+  function drawObstacles(){
+    for(var i=0; i<game.obstacles.length; i++){
+      var o = game.obstacles[i];
+
+      ctx.fillStyle = 'rgba(255,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(o.x + o.width/2, game.groundY + 6, o.width/2 + 5, 10, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      var type = o.type;
+      if(type === 0){
+        ctx.fillStyle = '#E8E8E8';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2, o.y + o.height*0.4, o.width/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2 - 10, o.y + o.height*0.35, 7, 0, Math.PI*2);
+        ctx.arc(o.x + o.width/2 + 10, o.y + o.height*0.35, 7, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#FF0000';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2 - 10, o.y + o.height*0.35, 3, 0, Math.PI*2);
+        ctx.arc(o.x + o.width/2 + 10, o.y + o.height*0.35, 3, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#8B0000';
+        ctx.fillRect(o.x + o.width/2 - 12, o.y + o.height*0.35 + 7, 4, 12);
+        ctx.fillRect(o.x + o.width/2 + 8, o.y + o.height*0.35 + 7, 4, 12);
+        ctx.fillRect(o.x + o.width/2 - 15, o.y + o.height*0.6, 30, 4);
+        for(var t=0; t<5; t++){
+          ctx.fillRect(o.x + o.width/2 - 12 + t*6, o.y + o.height*0.6, 3, 10);
+        }
+      } else if(type === 1){
+        ctx.fillStyle = '#3a3a3a';
+        ctx.beginPath();
+        ctx.roundRect(o.x, o.y + o.height*0.2, o.width, o.height*0.8, 8);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2, o.y + o.height*0.2, o.width/2, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#FF0000';
+        ctx.font = 'bold ' + Math.floor(o.width/2.5) + 'px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('RIP', o.x + o.width/2, o.y + o.height*0.65);
+      } else {
+        ctx.fillStyle = 'rgba(200,0,0,0.7)';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2, o.y + o.height*0.3, o.width/2, Math.PI, 0);
+        ctx.lineTo(o.x + o.width, o.y + o.height);
+        for(var w=0; w<4; w++){
+          ctx.lineTo(o.x + o.width - w * o.width/4, o.y + o.height*0.85);
+          ctx.lineTo(o.x + o.width - (w + 0.5) * o.width/4, o.y + o.height);
+        }
+        ctx.lineTo(o.x, o.y + o.height);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#FF0000';
+        ctx.beginPath();
+        ctx.arc(o.x + o.width/2 - 8, o.y + o.height*0.25, 5, 0, Math.PI*2);
+        ctx.arc(o.x + o.width/2 + 8, o.y + o.height*0.25, 5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#8B0000';
+        ctx.fillRect(o.x + o.width/2 - 3, o.y + o.height*0.45, 6, 15);
+      }
+    }
+  }
+
+  function checkCollision(p, o){
+    var px1 = p.x + p.hitboxPadding;
+    var px2 = p.x + p.width - p.hitboxPadding;
+    var py1 = p.y + p.hitboxPadding + 10;
+    var py2 = p.y + p.height - 5;
+
+    var ox1 = o.x + 8;
+    var ox2 = o.x + o.width - 8;
+    var oy1 = o.y + 8;
+    var oy2 = o.y + o.height - 8;
+
+    return (px1 < ox2 && px2 > ox1 && py1 < oy2 && py2 > oy1);
+  }
+
+  function gameLoop(now){
+    if(!game.running) return;
+
+    var p = game.player;
+    p.vy += game.gravity;
+    p.y += p.vy;
+
+    var groundLevel = game.groundY - p.height;
+    if(p.y >= groundLevel){
+      p.y = groundLevel;
+      p.vy = 0;
+      p.isJumping = false;
+    }
+
+    if(now - game.lastObstacleTime > game.obstacleInterval){
+      game.lastObstacleTime = now;
+      var obsW = 50 + Math.random() * 20;
+      var obsH = 50 + Math.random() * 30;
+      game.obstacles.push({
+        x: W + 20,
+        y: game.groundY - obsH,
+        width: obsW,
+        height: obsH,
+        type: Math.floor(Math.random() * 3)
+      });
+      game.speed += 0.15;
+      if(game.speed > 14) game.speed = 14;
+    }
+
+    for(var i=game.obstacles.length-1; i>=0; i--){
+      var o = game.obstacles[i];
+      o.x -= game.speed;
+
+      if(o.x + o.width < 0){
+        game.obstacles.splice(i, 1);
+        game.score++;
+        scoreText.textContent = 'Score: ' + game.score;
+        showFloatingScore();
+
+        if(game.score >= game.nextScare){
+          game.nextScare = game.score + 10;
+          triggerJumpScare();
+        }
+
+        continue;
+      }
+
+      if(checkCollision(p, o)){
+        endGame();
+        return;
+      }
+    }
+
+    drawBackground();
+    drawObstacles();
+    drawPlayer();
+
+    game.frameId = requestAnimationFrame(gameLoop);
+  }
+
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r){
+      if(w < 2*r) r = w/2;
+      if(h < 2*r) r = h/2;
+      this.beginPath();
+      this.moveTo(x+r, y);
+      this.arcTo(x+w, y, x+w, y+h, r);
+      this.arcTo(x+w, y+h, x, y+h, r);
+      this.arcTo(x, y+h, x, y, r);
+      this.arcTo(x, y, x+w, y, r);
+      this.closePath();
+      return this;
+    };
+  }
+
+  canvas.addEventListener('touchstart', function(e){
+    e.preventDefault();
+    if(game.running) jump();
+  }, { passive: false });
+
+  canvas.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    if(game.running) jump();
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.code === 'Space' || e.code === 'ArrowUp'){
+      e.preventDefault();
+      if(game.running) jump();
+    }
+  });
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  game.groundY = H - 100;
+  drawBackground();
+
+})();
+</script>
+
+</body>
+  </html>
